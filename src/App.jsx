@@ -1,8 +1,8 @@
 import "normalize.css"
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import SolicitudPage from './Pages/SolicitudPage'; // Esta es ahora /docente
-import RoleSelectionPage from './Pages/RoleSelectionP'; // Nueva página principal
-import SolicitudAlumnoPage from './Pages/SolicitudAlumnoPage'; // Nueva página de alumno
+import RoleSelectionPage from './Pages/RoleSelectionP'; // Esta es la nueva página principal 
+import SolicitudAlumnoPage from './Pages/SolicitudAlumnoPage'; // Esta es la nueva página del alumno y mi rama
 
 function App() {
   return (
