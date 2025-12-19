@@ -1,23 +1,21 @@
-import "normalize.css"
+// src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import SolicitudPage from './Pages/SolicitudPage'; // Esta es ahora /docente
-import RoleSelectionPage from './Pages/RoleSelectionP'; // Esta es la nueva página principal 
-import SolicitudAlumnoPage from './Pages/SolicitudAlumnoPage'; // Esta es la nueva página del alumno y mi rama
+import SolicitudPage from './Pages/SolicitudPage';
+import RoleSelectionPage from './Pages/RoleSelectionP'; // Asegúrate que termine en P
+import SolicitudAlumnoPage from './Pages/SolicitudAlumnoPage';
+import AuxiliarPage from './Pages/AuxiliarPage'; // IMPORTAR NUEVA PAGINA
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Ruta Raíz: Muestra la selección de rol */}
         <Route path="/" element={<RoleSelectionPage />} />
-        
-        {/* Ruta Docente: Muestra el formulario original */}
         <Route path="/docente" element={<SolicitudPage />} />
-        
-        {/* Ruta Alumno: Muestra el nuevo formulario de alumno */}
         <Route path="/alumno" element={<SolicitudAlumnoPage />} />
         
-        {/* Redirige cualquier otra cosa a la selección de rol */}
+        {/* NUEVA RUTA */}
+        <Route path="/auxiliar" element={<AuxiliarPage />} />
+        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
