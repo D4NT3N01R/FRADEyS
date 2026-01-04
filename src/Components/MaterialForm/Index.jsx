@@ -1,9 +1,12 @@
 // src/Components/MaterialForm/Index.jsx
 import React, { useState } from 'react';
 import TimePicker from './TimePicker';
-import { saveSolicitud } from '../../services/mockBackend';
+import { saveSolicitud } from '../../services/api'; 
+// Asegúrate de tener estos creados como vimos en el paso anterior:
+import { generateFolio } from '../../utils/folioGenerator';
+import ComprobanteModal from '../ComprobanteModal';
 
-// --- Helper para estilos comunes ---
+// --- Estilos ---
 const commonInputStyles = `
   w-full p-3.5 border border-gray-300 rounded-xl text-base text-gray-800 
   transition duration-200 box-border
@@ -11,49 +14,37 @@ const commonInputStyles = `
 `;
 const formGroupStyles = "grid gap-2";
 const labelStyles = "font-semibold text-sm text-gray-700";
-// ---
 
 function MaterialForm() {
-  // --- Estado de React ---
+  // --- Estados ---
   const [nombreDocente, setNombreDocente] = useState('');
   const [fecha, setFecha] = useState('');
   const [dateError, setDateError] = useState(false);
-  
-  // Datos ahora de entrada libre
   const [escenario, setEscenario] = useState('');
   const [hora, setHora] = useState('');
   const [materia, setMateria] = useState('');
-  const [materialSolicitado, setMaterialSolicitado] = useState(''); // Nuevo estado para el material texto
-  
-  // Estado para el checkbox de confirmación
+  const [materialSolicitado, setMaterialSolicitado] = useState('');
   const [registroCompleto, setRegistroCompleto] = useState(false);
+
+  // Estado para el Ticket (Modal)
+  const [ticketData, setTicketData] = useState(null);
 
   // --- Lógica de Visibilidad ---
   const showDate = nombreDocente.trim().length > 0;
-  
-  // Mostramos Escenario después de la fecha válida
   const showEscenario = showDate && fecha && !dateError;
-  
-  // Mostramos Hora, Materia y Material si ya hay escenario escrito
-  // (Verificamos que escenario no esté vacío)
   const showTimeAndMateria = showEscenario && escenario.trim().length > 0;
-  
-  // El botón se habilita si todo está lleno
   const isConfirmEnabled = showTimeAndMateria && materia.trim() && hora && materialSolicitado.trim() && registroCompleto;
 
-  // --- Manejadores de Eventos ---
-
+  // --- Manejador de Fecha ---
   const handleDateChange = (e) => {
     const newDateValue = e.target.value;
     setFecha(newDateValue);
-
-    // Validación de domingo
     if (!newDateValue) return;
+    
+    // Validación Domingo
     const parts = newDateValue.split('-');
     const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    const dayOfWeek = selectedDate.getDay();
-
-    if (dayOfWeek === 0) { 
+    if (selectedDate.getDay() === 0) { 
       setDateError(true);
       setFecha(''); 
     } else {
@@ -61,38 +52,53 @@ function MaterialForm() {
     }
   };
 
-  const handleSubmit = () => {
-    // Validaciones finales
-    if (!nombreDocente.trim()) return alert("Por favor, ingrese su nombre.");
-    if (!fecha) return alert("Por favor, seleccione una fecha válida.");
-    if (!escenario.trim()) return alert("Por favor, escriba un escenario.");
-    if (!hora) return alert("Por favor, seleccione una hora.");
-    if (!materia.trim()) return alert("Por favor, escriba la materia.");
-    if (!materialSolicitado.trim()) return alert("Por favor, liste los materiales.");
-    if (!registroCompleto) return alert("Confirme el registro de práctica.");
+  // --- Enviar Solicitud ---
+  const handleSubmit = async () => {
+    if (!isConfirmEnabled) return alert("Faltan datos.");
 
-    // Guardar solicitud
-    const guardadoExitoso = saveSolicitud({
+    // 1. Generar Folio
+    const nuevoFolio = generateFolio('DOC');
+
+    // 2. Preparar Datos
+    const solicitudData = {
+      folio: nuevoFolio,
       tipo: 'Docente',
       nombre: nombreDocente,
       fechaPractica: fecha,
       hora: hora,
-      materia: materia, // Ahora es texto libre
-      escenario: escenario, // Ahora es texto libre
-      materiales: materialSolicitado // Ahora es texto libre
-    });
+      materia: materia,
+      escenario: escenario,
+      materiales: materialSolicitado
+    };
+
+    // 3. Guardar en JSON Server
+    const guardadoExitoso = await saveSolicitud(solicitudData);
 
     if (guardadoExitoso) {
-      alert(`¡Solicitud Confirmada!\nDocente: ${nombreDocente}\nMateria: ${materia}\nEscenario: ${escenario}`);
-      // Opcional: limpiar campos aquí
+      // 4. Mostrar Ticket
+      setTicketData(solicitudData);
+      
+      // Limpiar formulario (opcional, visualmente se limpia cuando cierras el modal)
+      setNombreDocente(''); setFecha(''); setHora(''); setMateria(''); 
+      setEscenario(''); setMaterialSolicitado(''); setRegistroCompleto(false);
+    } else {
+      alert("Error al conectar con el servidor.");
     }
   };
 
   return (
     <>
+      {/* --- MODAL DE TICKET --- */}
+      {ticketData && (
+        <ComprobanteModal 
+          data={ticketData} 
+          onClose={() => setTicketData(null)} 
+        />
+      )}
+
       <form className="grid gap-6 p-8" onSubmit={(e) => e.preventDefault()}>
         
-        {/* --- Nombre Docente --- */}
+        {/* Nombre */}
         <div className={formGroupStyles}>
           <label htmlFor="nombreDocente" className={labelStyles}>Nombre del Docente:</label>
           <input
@@ -105,7 +111,7 @@ function MaterialForm() {
           />
         </div>
 
-        {/* --- Fecha --- */}
+        {/* Fecha */}
         {showDate && (
           <div className={formGroupStyles}>
             <label htmlFor="fechaPractica" className={labelStyles}>Fecha de la Práctica:</label>
@@ -124,7 +130,7 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- Escenario (Texto Libre) --- */}
+        {/* Escenario (Texto Libre) */}
         {showEscenario && (
           <div className={formGroupStyles}>
             <label htmlFor="escenario" className={labelStyles}>Escenario (Salón/Laboratorio):</label>
@@ -140,18 +146,14 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- Hora, Materia y Materiales --- */}
+        {/* Resto del formulario */}
         {showTimeAndMateria && (
           <>
             <div className={formGroupStyles}>
               <label className={labelStyles}>Hora de la Práctica:</label>
-              <TimePicker
-                selectedTime={hora}
-                onTimeSelect={(newTime) => setHora(newTime)}
-              />
+              <TimePicker selectedTime={hora} onTimeSelect={setHora} />
             </div>
 
-            {/* Materia Texto Libre */}
             <div className={formGroupStyles}>
               <label htmlFor="materia" className={labelStyles}>Materia:</label>
               <input
@@ -167,7 +169,6 @@ function MaterialForm() {
               </small>
             </div>
 
-            {/* Material Texto Libre (Textarea) */}
             <div className={formGroupStyles}>
               <label htmlFor="materiales" className={labelStyles}>Lista de Materiales:</label>
               <textarea
@@ -184,10 +185,8 @@ function MaterialForm() {
               </small>
             </div>
 
-            {/* --- Registro Qualtrics --- */}
             <div className={formGroupStyles}>
               <label className={labelStyles}>Paso Final: Registro de Práctica</label>
-              
               <a
                 href="https://uvm.az1.qualtrics.com/jfe/form/SV_bQlNFwKPhJuJIt8"
                 target="_blank"
@@ -207,10 +206,7 @@ function MaterialForm() {
                   checked={registroCompleto}
                   onChange={(e) => setRegistroCompleto(e.target.checked)}
                 />
-                <label
-                  htmlFor="confirmRegistro"
-                  className="cursor-pointer text-sm font-medium text-gray-700"
-                >
+                <label htmlFor="confirmRegistro" className="cursor-pointer text-sm font-medium text-gray-700">
                   He completado el registro de la práctica.
                 </label>
               </div>
@@ -220,7 +216,6 @@ function MaterialForm() {
 
       </form>
 
-      {/* --- Footer --- */}
       <footer className="px-8 pb-8">
         <button
           className="w-full rounded-xl border-none bg-green-500 p-4 text-lg
