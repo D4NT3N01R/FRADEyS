@@ -1,14 +1,9 @@
 // src/Components/AlumnoForm/index.jsx
-import React, { useState } from 'react';
-// Reutilizamos tu TimePicker existente
-import TimePicker from '../MaterialForm/TimePicker'; 
+import React, { useState, useEffect } from 'react';
+import TimePicker from '../MaterialForm/TimePicker';
+import { getEscenarios, saveSolicitud } from '../../services/mockBackend'; // Importar servicio
 
-// Reutilizamos los estilos de tu MaterialForm
-const commonInputStyles = `
-  w-full p-3.5 border border-gray-300 rounded-xl text-base text-gray-800 
-  transition duration-200 box-border
-  focus:outline-none focus:border-black focus:ring-2 focus:ring-black/30
-`;
+const commonInputStyles = `w-full p-3.5 border border-gray-300 rounded-xl text-base text-gray-800 transition duration-200 box-border focus:outline-none focus:border-black focus:ring-2 focus:ring-black/30`;
 const formGroupStyles = "grid gap-2";
 const labelStyles = "font-semibold text-sm text-gray-700";
 
@@ -17,91 +12,76 @@ function AlumnoForm() {
   const [matricula, setMatricula] = useState('');
   const [hora, setHora] = useState('');
   const [materialSolicitado, setMaterialSolicitado] = useState('');
+  
+  // --- Nuevo ---
+  const [escenario, setEscenario] = useState('');
+  const [listaEscenarios, setListaEscenarios] = useState([]);
 
-  const isConfirmEnabled = nombre.trim() && matricula.trim() && hora && materialSolicitado.trim();
+  useEffect(() => {
+    setListaEscenarios(getEscenarios());
+  }, []);
 
   const handleSubmit = () => {
-    if (!isConfirmEnabled) {
+    if (!nombre || !matricula || !hora || !materialSolicitado || !escenario) {
       alert("Por favor, complete todos los campos.");
       return;
     }
-    alert(`Solicitud de Alumno Confirmada:\nNombre: ${nombre}\nMatrícula: ${matricula}\nHora: ${hora}\nMaterial: ${materialSolicitado}`);
-    // Limpiamos el formulario
-    setNombre('');
-    setMatricula('');
-    setHora('');
-    setMaterialSolicitado('');
+
+    // GUARDAR DATOS
+    saveSolicitud({
+      tipo: 'Alumno',
+      nombre,
+      matricula,
+      hora,
+      materiales: materialSolicitado, // Texto abierto
+      escenario,
+      fechaPractica: new Date().toLocaleDateString() // Alumno pide para hoy usualmente
+    });
+
+    alert("Solicitud de Alumno enviada al sistema.");
+    // Limpiar campos...
+    setNombre(''); setMatricula(''); setHora(''); setMaterialSolicitado(''); setEscenario('');
   };
 
   return (
-    <>
-      <form className="grid gap-6 p-8" onSubmit={(e) => e.preventDefault()}>
-        
-        <div className={formGroupStyles}>
-          <label htmlFor="nombreAlumno" className={labelStyles}>Nombre Completo:</label>
-          <input
-            type="text"
-            id="nombreAlumno"
-            placeholder="Escriba su nombre"
-            className={commonInputStyles}
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-          />
-        </div>
+    <form className="grid gap-6 p-8" onSubmit={(e) => e.preventDefault()}>
+      {/* Inputs existentes de Nombre y Matricula... */}
+      <div className={formGroupStyles}>
+          <label className={labelStyles}>Nombre:</label>
+          <input type="text" className={commonInputStyles} value={nombre} onChange={e=>setNombre(e.target.value)} />
+      </div>
+      <div className={formGroupStyles}>
+          <label className={labelStyles}>Matrícula:</label>
+          <input type="text" className={commonInputStyles} value={matricula} onChange={e=>setMatricula(e.target.value)} />
+      </div>
 
-        <div className={formGroupStyles}>
-          <label htmlFor="matricula" className={labelStyles}>Matrícula Institucional:</label>
-          <input
-            type="text"
-            id="matricula"
-            placeholder="Ej. A00123456"
-            className={commonInputStyles}
-            value={matricula}
-            onChange={(e) => setMatricula(e.target.value)}
-          />
-        </div>
-
-        <div className={formGroupStyles}>
-          <label className={labelStyles}>Hora de la Solicitud:</label>
-          <TimePicker
-            selectedTime={hora}
-            onTimeSelect={(newTime) => setHora(newTime)}
-          />
-        </div>
-
-        <div className={formGroupStyles}>
-          <label htmlFor="material" className={labelStyles}>Material a Solicitar:</label>
-          <textarea
-            id="material"
-            rows="5"
-            placeholder="Escriba el material y la cantidad..."
-            className={commonInputStyles}
-            value={materialSolicitado}
-            onChange={(e) => setMaterialSolicitado(e.target.value)}
-          />
-          {/* Este es el disclaimer que pediste */}
-          <small className="rounded-md bg-yellow-100 p-3 text-xs text-yellow-900 shadow-sm">
-            <b>Importante:</b> Especifique la cantidad correcta (ej. "2x Multímetro") 
-            y el nombre completo del material, sin abreviaciones o cosas extrañas.
-          </small>
-        </div>
-
-      </form>
-
-      <footer className="px-8 pb-8">
-        <button
-          className="w-full rounded-xl border-none bg-green-500 p-4 text-lg
-                     font-semibold text-white transition cursor-pointer
-                     hover:bg-green-600 active:scale-[.98]
-                     disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-          disabled={!isConfirmEnabled}
-          onClick={handleSubmit}
+      {/* --- NUEVO SELECTOR DE ESCENARIO --- */}
+      <div className={formGroupStyles}>
+        <label className={labelStyles}>Escenario a utilizar:</label>
+        <select 
+          className={commonInputStyles}
+          value={escenario}
+          onChange={(e) => setEscenario(e.target.value)}
         >
-          Confirmar y Solicitar
-        </button>
-      </footer>
-    </>
+          <option value="">[Seleccione Escenario]</option>
+          {listaEscenarios.map(esc => (
+            <option key={esc} value={esc}>{esc}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className={formGroupStyles}>
+        <label className={labelStyles}>Hora:</label>
+        <TimePicker selectedTime={hora} onTimeSelect={setHora} />
+      </div>
+
+      <div className={formGroupStyles}>
+        <label className={labelStyles}>Material:</label>
+        <textarea className={commonInputStyles} value={materialSolicitado} onChange={e=>setMaterialSolicitado(e.target.value)} />
+      </div>
+
+      <button onClick={handleSubmit} className="w-full bg-green-500 text-white p-4 rounded-xl font-bold mt-4">Solicitar</button>
+    </form>
   );
 }
-
 export default AlumnoForm;

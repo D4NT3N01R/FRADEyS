@@ -1,9 +1,11 @@
-// src/components/MaterialForm/index.jsx
-import React, { useState } from 'react';
+// src/Components/MaterialForm/Index.jsx
+import React, { useState, useEffect } from 'react';
 import TimePicker from './TimePicker';
 import MaterialList from './MaterialList';
+// Importamos el servicio para guardar los datos y obtener escenarios
+import { getEscenarios, saveSolicitud } from '../../services/mockBackend';
 
-// Definimos los datos de los materiales fuera del componente
+// Definimos los datos de los materiales
 const DATA_MATERIALES = {
   electricidad: [
     "2x Multímetro Digital",
@@ -19,7 +21,6 @@ const DATA_MATERIALES = {
 };
 
 // --- Helper para estilos comunes ---
-// Esto facilita la reutilización de clases de Tailwind
 const commonInputStyles = `
   w-full p-3.5 border border-gray-300 rounded-xl text-base text-gray-800 
   transition duration-200 box-border
@@ -31,19 +32,38 @@ const labelStyles = "font-semibold text-sm text-gray-700";
 
 function MaterialForm() {
   // --- Estado de React ---
-  // Reemplaza la manipulación del DOM
   const [nombreDocente, setNombreDocente] = useState('');
   const [fecha, setFecha] = useState('');
   const [dateError, setDateError] = useState(false);
+  
+  // Nuevo estado para Escenario
+  const [escenario, setEscenario] = useState('');
+  const [listaEscenarios, setListaEscenarios] = useState([]);
+
   const [hora, setHora] = useState('');
   const [materia, setMateria] = useState('');
+  
+  // Estado para el checkbox de confirmación
   const [registroCompleto, setRegistroCompleto] = useState(false);
 
+  // Cargar los escenarios al iniciar el componente
+  useEffect(() => {
+    setListaEscenarios(getEscenarios());
+  }, []);
+
   // --- Lógica de Visibilidad ---
-  // El HTML se renderiza condicionalmente basado en el estado
   const showDate = nombreDocente.trim().length > 0;
-  const showTimeAndMateria = showDate && fecha && !dateError;
-  const showRegistro = showTimeAndMateria && materia;
+  
+  // Ahora pedimos Escenario después de la fecha válida
+  const showEscenario = showDate && fecha && !dateError;
+  
+  // Mostramos Hora y Materia si ya hay escenario
+  const showTimeAndMateria = showEscenario && escenario;
+  
+  // Mostramos el registro final si ya se eligió materia y hora
+  const showRegistro = showTimeAndMateria && materia && hora;
+  
+  // El botón se habilita solo si se marcó el checkbox
   const isConfirmEnabled = showRegistro && registroCompleto;
 
   // --- Manejadores de Eventos ---
@@ -52,14 +72,14 @@ function MaterialForm() {
     const newDateValue = e.target.value;
     setFecha(newDateValue);
 
-    // Lógica de validación del Domingo
+    // Validación de domingo
     const parts = newDateValue.split('-');
     const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
     const dayOfWeek = selectedDate.getDay();
 
-    if (dayOfWeek === 0) { // 0 es Domingo
+    if (dayOfWeek === 0) { 
       setDateError(true);
-      setFecha(''); // Limpia la fecha inválida
+      setFecha(''); 
     } else {
       setDateError(false);
     }
@@ -70,19 +90,35 @@ function MaterialForm() {
   };
 
   const handleSubmit = () => {
-    // Lógica de validación final (reemplaza btnConfirmar.addEventListener)
+    // Validaciones finales de seguridad
     if (!nombreDocente.trim()) return alert("Por favor, ingrese su nombre.");
     if (!fecha) return alert("Por favor, seleccione una fecha válida.");
+    if (!escenario) return alert("Por favor, seleccione un escenario.");
     if (!hora) return alert("Por favor, seleccione una hora para la práctica.");
     if (!materia) return alert("Por favor, seleccione una materia.");
     if (!registroCompleto) return alert("Por favor, confirme que ha completado el registro de la práctica.");
 
-    alert(`¡Solicitud Confirmada!\nDocente: ${nombreDocente}\nDía: ${fecha}\nHora: ${hora}`);
+    // Guardar en nuestro "Backend" simulado
+    const guardadoExitoso = saveSolicitud({
+      tipo: 'Docente',
+      nombre: nombreDocente,
+      fechaPractica: fecha,
+      hora: hora,
+      materia: materia,
+      escenario: escenario, // Guardamos el salón seleccionado
+      materiales: DATA_MATERIALES[materia] || []
+    });
+
+    if (guardadoExitoso) {
+      alert(`¡Solicitud Confirmada y Enviada al Laboratorio!\nDocente: ${nombreDocente}\nEscenario: ${escenario}\nDía: ${fecha}\nHora: ${hora}`);
+      
+      // Opcional: Reiniciar formulario
+      // setNombreDocente(''); setFecha(''); ...
+    }
   };
 
   return (
     <>
-      {/* Reemplaza .portal-body */}
       <form className="grid gap-6 p-8" onSubmit={(e) => e.preventDefault()}>
         
         {/* --- Nombre Docente --- */}
@@ -98,7 +134,7 @@ function MaterialForm() {
           />
         </div>
 
-        {/* --- Fecha (Condicional) --- */}
+        {/* --- Fecha --- */}
         {showDate && (
           <div className={formGroupStyles}>
             <label htmlFor="fechaPractica" className={labelStyles}>Fecha de la Práctica:</label>
@@ -117,7 +153,25 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- Hora (Condicional) --- */}
+        {/* --- NUEVO: Selección de Escenario --- */}
+        {showEscenario && (
+          <div className={formGroupStyles}>
+            <label htmlFor="escenario" className={labelStyles}>Escenario (Salón/Laboratorio):</label>
+            <select
+              id="escenario"
+              className={commonInputStyles}
+              value={escenario}
+              onChange={(e) => setEscenario(e.target.value)}
+            >
+              <option value="">[Seleccione un escenario]</option>
+              {listaEscenarios.map((esc) => (
+                <option key={esc} value={esc}>{esc}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* --- Hora --- */}
         {showTimeAndMateria && (
           <div className={formGroupStyles}>
             <label className={labelStyles}>Hora de la Práctica:</label>
@@ -128,7 +182,7 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- Materia (Condicional) --- */}
+        {/* --- Materia --- */}
         {showTimeAndMateria && (
           <div className={formGroupStyles}>
             <label htmlFor="materia" className={labelStyles}>Materia:</label>
@@ -145,32 +199,31 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- Lista de Materiales (Condicional) --- */}
+        {/* --- Lista de Materiales --- */}
         {showTimeAndMateria && (
           <MaterialList materiales={DATA_MATERIALES[materia]} />
         )}
 
-        {/* --- Registro (Condicional) --- */}
+        {/* --- Registro (Restaurado) --- */}
         {showRegistro && (
           <div className={formGroupStyles}>
             <label className={labelStyles}>Paso Final: Registro de Práctica</label>
+            
             <a
               href="https://uvm.az1.qualtrics.com/jfe/form/SV_bQlNFwKPhJuJIt8"
               target="_blank"
               rel="noopener noreferrer"
-              // Reemplaza #qualtrics-link
               className="box-border block w-full rounded-xl border border-black bg-white p-3.5
                          text-center text-base font-semibold text-black no-underline
                          transition hover:bg-black hover:text-white"
             >
               Ir al Registro de Práctica ↗
             </a>
-            {/* Reemplaza .checkbox-wrapper */}
+
             <div className="mt-4 flex items-center gap-2.5">
               <input
                 type="checkbox"
                 id="confirmRegistro"
-                // Reemplaza #confirmRegistro
                 className="h-4 w-4 cursor-pointer"
                 checked={registroCompleto}
                 onChange={(e) => setRegistroCompleto(e.target.checked)}
@@ -187,16 +240,15 @@ function MaterialForm() {
 
       </form>
 
-      {/* Reemplaza .portal-footer */}
+      {/* --- Footer --- */}
       <footer className="px-8 pb-8">
         <button
           id="btnConfirmar"
-          // Reemplaza #btnConfirmar y :disabled
           className="w-full rounded-xl border-none bg-green-500 p-4 text-lg
                      font-semibold text-white transition cursor-pointer
                      hover:bg-green-600 active:scale-[.98]
                      disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-          disabled={!isConfirmEnabled}
+          disabled={!isConfirmEnabled} 
           onClick={handleSubmit}
         >
           Confirmar y Solicitar
