@@ -1,6 +1,7 @@
 // src/services/api.js
 
-const API_URL = "http://localhost:3000/solicitudes";
+// Si existe la variable de entorno (en Vercel), úsala. Si no (en tu PC), usa localhost.
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/solicitudes";
 
 /**
  * 1. GUARDAR NUEVA SOLICITUD (POST)
