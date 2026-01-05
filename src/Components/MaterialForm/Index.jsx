@@ -1,26 +1,12 @@
 // src/Components/MaterialForm/Index.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import TimePicker from './TimePicker';
-import MaterialList from './MaterialList';
-// Importamos el servicio para guardar los datos y obtener escenarios
-import { getEscenarios, saveSolicitud } from '../../services/mockBackend';
+import { saveSolicitud } from '../../services/api'; 
+// Asegúrate de tener estos creados como vimos en el paso anterior:
+import { generateFolio } from '../../utils/folioGenerator';
+import ComprobanteModal from '../ComprobanteModal';
 
-// Definimos los datos de los materiales
-const DATA_MATERIALES = {
-  electricidad: [
-    "2x Multímetro Digital",
-    "4x Cables Banana-Caimán",
-    "1x Fuente de Poder DC",
-    "1x Protoboard",
-    "5x Resistencias de 1kΩ"
-  ],
-  otraMateria: [
-    "Material de prueba 1",
-    "Material de prueba 2"
-  ]
-};
-
-// --- Helper para estilos comunes ---
+// --- Estilos ---
 const commonInputStyles = `
   w-full p-3.5 border border-gray-300 rounded-xl text-base text-gray-800 
   transition duration-200 box-border
@@ -28,56 +14,37 @@ const commonInputStyles = `
 `;
 const formGroupStyles = "grid gap-2";
 const labelStyles = "font-semibold text-sm text-gray-700";
-// ---
 
 function MaterialForm() {
-  // --- Estado de React ---
+  // --- Estados ---
   const [nombreDocente, setNombreDocente] = useState('');
   const [fecha, setFecha] = useState('');
   const [dateError, setDateError] = useState(false);
-  
-  // Nuevo estado para Escenario
   const [escenario, setEscenario] = useState('');
-  const [listaEscenarios, setListaEscenarios] = useState([]);
-
   const [hora, setHora] = useState('');
   const [materia, setMateria] = useState('');
-  
-  // Estado para el checkbox de confirmación
+  const [materialSolicitado, setMaterialSolicitado] = useState('');
   const [registroCompleto, setRegistroCompleto] = useState(false);
 
-  // Cargar los escenarios al iniciar el componente
-  useEffect(() => {
-    setListaEscenarios(getEscenarios());
-  }, []);
+  // Estado para el Ticket (Modal)
+  const [ticketData, setTicketData] = useState(null);
 
   // --- Lógica de Visibilidad ---
   const showDate = nombreDocente.trim().length > 0;
-  
-  // Ahora pedimos Escenario después de la fecha válida
   const showEscenario = showDate && fecha && !dateError;
-  
-  // Mostramos Hora y Materia si ya hay escenario
-  const showTimeAndMateria = showEscenario && escenario;
-  
-  // Mostramos el registro final si ya se eligió materia y hora
-  const showRegistro = showTimeAndMateria && materia && hora;
-  
-  // El botón se habilita solo si se marcó el checkbox
-  const isConfirmEnabled = showRegistro && registroCompleto;
+  const showTimeAndMateria = showEscenario && escenario.trim().length > 0;
+  const isConfirmEnabled = showTimeAndMateria && materia.trim() && hora && materialSolicitado.trim() && registroCompleto;
 
-  // --- Manejadores de Eventos ---
-
+  // --- Manejador de Fecha ---
   const handleDateChange = (e) => {
     const newDateValue = e.target.value;
     setFecha(newDateValue);
-
-    // Validación de domingo
+    if (!newDateValue) return;
+    
+    // Validación Domingo
     const parts = newDateValue.split('-');
     const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    const dayOfWeek = selectedDate.getDay();
-
-    if (dayOfWeek === 0) { 
+    if (selectedDate.getDay() === 0) { 
       setDateError(true);
       setFecha(''); 
     } else {
@@ -85,43 +52,53 @@ function MaterialForm() {
     }
   };
 
-  const handleMateriaChange = (e) => {
-    setMateria(e.target.value);
-  };
+  // --- Enviar Solicitud ---
+  const handleSubmit = async () => {
+    if (!isConfirmEnabled) return alert("Faltan datos.");
 
-  const handleSubmit = () => {
-    // Validaciones finales de seguridad
-    if (!nombreDocente.trim()) return alert("Por favor, ingrese su nombre.");
-    if (!fecha) return alert("Por favor, seleccione una fecha válida.");
-    if (!escenario) return alert("Por favor, seleccione un escenario.");
-    if (!hora) return alert("Por favor, seleccione una hora para la práctica.");
-    if (!materia) return alert("Por favor, seleccione una materia.");
-    if (!registroCompleto) return alert("Por favor, confirme que ha completado el registro de la práctica.");
+    // 1. Generar Folio
+    const nuevoFolio = generateFolio('DOC');
 
-    // Guardar en nuestro "Backend" simulado
-    const guardadoExitoso = saveSolicitud({
+    // 2. Preparar Datos
+    const solicitudData = {
+      folio: nuevoFolio,
       tipo: 'Docente',
       nombre: nombreDocente,
       fechaPractica: fecha,
       hora: hora,
       materia: materia,
-      escenario: escenario, // Guardamos el salón seleccionado
-      materiales: DATA_MATERIALES[materia] || []
-    });
+      escenario: escenario,
+      materiales: materialSolicitado
+    };
+
+    // 3. Guardar en JSON Server
+    const guardadoExitoso = await saveSolicitud(solicitudData);
 
     if (guardadoExitoso) {
-      alert(`¡Solicitud Confirmada y Enviada al Laboratorio!\nDocente: ${nombreDocente}\nEscenario: ${escenario}\nDía: ${fecha}\nHora: ${hora}`);
+      // 4. Mostrar Ticket
+      setTicketData(solicitudData);
       
-      // Opcional: Reiniciar formulario
-      // setNombreDocente(''); setFecha(''); ...
+      // Limpiar formulario (opcional, visualmente se limpia cuando cierras el modal)
+      setNombreDocente(''); setFecha(''); setHora(''); setMateria(''); 
+      setEscenario(''); setMaterialSolicitado(''); setRegistroCompleto(false);
+    } else {
+      alert("Error al conectar con el servidor.");
     }
   };
 
   return (
     <>
+      {/* --- MODAL DE TICKET --- */}
+      {ticketData && (
+        <ComprobanteModal 
+          data={ticketData} 
+          onClose={() => setTicketData(null)} 
+        />
+      )}
+
       <form className="grid gap-6 p-8" onSubmit={(e) => e.preventDefault()}>
         
-        {/* --- Nombre Docente --- */}
+        {/* Nombre */}
         <div className={formGroupStyles}>
           <label htmlFor="nombreDocente" className={labelStyles}>Nombre del Docente:</label>
           <input
@@ -134,7 +111,7 @@ function MaterialForm() {
           />
         </div>
 
-        {/* --- Fecha --- */}
+        {/* Fecha */}
         {showDate && (
           <div className={formGroupStyles}>
             <label htmlFor="fechaPractica" className={labelStyles}>Fecha de la Práctica:</label>
@@ -153,97 +130,94 @@ function MaterialForm() {
           </div>
         )}
 
-        {/* --- NUEVO: Selección de Escenario --- */}
+        {/* Escenario (Texto Libre) */}
         {showEscenario && (
           <div className={formGroupStyles}>
             <label htmlFor="escenario" className={labelStyles}>Escenario (Salón/Laboratorio):</label>
-            <select
+            <input
+              type="text"
               id="escenario"
+              placeholder="Escriba el salón..."
               className={commonInputStyles}
               value={escenario}
               onChange={(e) => setEscenario(e.target.value)}
-            >
-              <option value="">[Seleccione un escenario]</option>
-              {listaEscenarios.map((esc) => (
-                <option key={esc} value={esc}>{esc}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* --- Hora --- */}
-        {showTimeAndMateria && (
-          <div className={formGroupStyles}>
-            <label className={labelStyles}>Hora de la Práctica:</label>
-            <TimePicker
-              selectedTime={hora}
-              onTimeSelect={(newTime) => setHora(newTime)}
             />
+            <small className="text-xs text-gray-500">Ej: F203, B204, F109</small>
           </div>
         )}
 
-        {/* --- Materia --- */}
+        {/* Resto del formulario */}
         {showTimeAndMateria && (
-          <div className={formGroupStyles}>
-            <label htmlFor="materia" className={labelStyles}>Materia:</label>
-            <select
-              id="materia"
-              className={commonInputStyles}
-              value={materia}
-              onChange={handleMateriaChange}
-            >
-              <option value="">[Seleccione una materia]</option>
-              <option value="electricidad">[Electricidad y Magnetismo]</option>
-              <option value="otraMateria">Otra Materia (Demo)</option>
-            </select>
-          </div>
-        )}
-
-        {/* --- Lista de Materiales --- */}
-        {showTimeAndMateria && (
-          <MaterialList materiales={DATA_MATERIALES[materia]} />
-        )}
-
-        {/* --- Registro (Restaurado) --- */}
-        {showRegistro && (
-          <div className={formGroupStyles}>
-            <label className={labelStyles}>Paso Final: Registro de Práctica</label>
-            
-            <a
-              href="https://uvm.az1.qualtrics.com/jfe/form/SV_bQlNFwKPhJuJIt8"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="box-border block w-full rounded-xl border border-black bg-white p-3.5
-                         text-center text-base font-semibold text-black no-underline
-                         transition hover:bg-black hover:text-white"
-            >
-              Ir al Registro de Práctica ↗
-            </a>
-
-            <div className="mt-4 flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                id="confirmRegistro"
-                className="h-4 w-4 cursor-pointer"
-                checked={registroCompleto}
-                onChange={(e) => setRegistroCompleto(e.target.checked)}
-              />
-              <label
-                htmlFor="confirmRegistro"
-                className="cursor-pointer text-sm font-medium text-gray-700"
-              >
-                He completado el registro de la práctica.
-              </label>
+          <>
+            <div className={formGroupStyles}>
+              <label className={labelStyles}>Hora de la Práctica:</label>
+              <TimePicker selectedTime={hora} onTimeSelect={setHora} />
             </div>
-          </div>
+
+            <div className={formGroupStyles}>
+              <label htmlFor="materia" className={labelStyles}>Materia:</label>
+              <input
+                type="text"
+                id="materia"
+                placeholder="Nombre de la asignatura"
+                className={commonInputStyles}
+                value={materia}
+                onChange={(e) => setMateria(e.target.value)}
+              />
+              <small className="text-xs text-red-600 font-medium">
+                Nombre completo de la asignatura sin ABREVIACIONES
+              </small>
+            </div>
+
+            <div className={formGroupStyles}>
+              <label htmlFor="materiales" className={labelStyles}>Lista de Materiales:</label>
+              <textarea
+                id="materiales"
+                rows="5"
+                placeholder="Escriba el material y la cantidad..."
+                className={commonInputStyles}
+                value={materialSolicitado}
+                onChange={(e) => setMaterialSolicitado(e.target.value)}
+              />
+              <small className="rounded-md bg-yellow-100 p-3 text-xs text-yellow-900 shadow-sm">
+                <b>Importante:</b> Especifique la cantidad correcta (ej. "2x Multímetro") 
+                y el nombre completo del material, sin abreviaciones o cosas extrañas.
+              </small>
+            </div>
+
+            <div className={formGroupStyles}>
+              <label className={labelStyles}>Paso Final: Registro de Práctica</label>
+              <a
+                href="https://uvm.az1.qualtrics.com/jfe/form/SV_bQlNFwKPhJuJIt8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="box-border block w-full rounded-xl border border-black bg-white p-3.5
+                           text-center text-base font-semibold text-black no-underline
+                           transition hover:bg-black hover:text-white"
+              >
+                Ir al Registro de Práctica ↗
+              </a>
+
+              <div className="mt-4 flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  id="confirmRegistro"
+                  className="h-4 w-4 cursor-pointer"
+                  checked={registroCompleto}
+                  onChange={(e) => setRegistroCompleto(e.target.checked)}
+                />
+                <label htmlFor="confirmRegistro" className="cursor-pointer text-sm font-medium text-gray-700">
+                  He completado el registro de la práctica.
+                </label>
+              </div>
+            </div>
+          </>
         )}
 
       </form>
 
-      {/* --- Footer --- */}
       <footer className="px-8 pb-8">
         <button
-          id="btnConfirmar"
           className="w-full rounded-xl border-none bg-green-500 p-4 text-lg
                      font-semibold text-white transition cursor-pointer
                      hover:bg-green-600 active:scale-[.98]
