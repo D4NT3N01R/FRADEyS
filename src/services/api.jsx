@@ -1,7 +1,13 @@
-// src/services/api.js
+// src/services/api.jsx
 
-// Si existe la variable de entorno (en Vercel), úsala. Si no (en tu PC), usa localhost.
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/solicitudes";
+// CONFIGURACIÓN DE URL DINÁMICA
+// 1. En Vercel: Usará la variable de entorno que configuraste (MockAPI).
+// 2. En Local: Usará http://localhost:3000 si no existe la variable.
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+// Nos aseguramos de apuntar al recurso "solicitudes"
+// Si usaste la URL base de MockAPI (ej. .../api/v1), esto le agrega /solicitudes
+const API_URL = `${BASE_URL}/solicitudes`;
 
 /**
  * 1. GUARDAR NUEVA SOLICITUD (POST)
@@ -39,10 +45,12 @@ export const getUniqueEscenarios = async () => {
     const response = await fetch(API_URL);
     const data = await response.json();
     
-    // Filtramos para obtener solo los nombres únicos y que no estén vacíos
+    // Si la API no devuelve un array (error), retornamos vacío
+    if (!Array.isArray(data)) return [];
+
+    // Filtramos para obtener solo los nombres únicos y eliminamos vacíos
     const escenarios = [...new Set(data.map(item => item.escenario))];
     
-    // Filtramos nulos/vacíos y ordenamos alfabéticamente
     return escenarios.filter(Boolean).sort();
   } catch (error) {
     console.error("Error obteniendo escenarios:", error);
@@ -56,16 +64,18 @@ export const getUniqueEscenarios = async () => {
  */
 export const getSolicitudesByEscenario = async (escenarioNombre) => {
   try {
-    // encodeURIComponent ayuda si el nombre del salón tiene espacios
+    // MockAPI permite filtrar directamente en la URL con ?campo=valor
     const response = await fetch(`${API_URL}?escenario=${encodeURIComponent(escenarioNombre)}`);
     const data = await response.json();
     
+    // Validación de seguridad por si MockAPI devuelve error
+    if (!Array.isArray(data)) return [];
+
     const now = new Date();
 
     // FILTRO VISUAL: Ocultar "Entregado" si pasaron más de 24 horas
     const filteredData = data.filter(item => {
-      // Si NO está entregado, siempre se muestra (Pendientes y Cancelados)
-      // Nota: El filtrado de "Cancelados" para la vista principal se hace en el componente React
+      // Si NO está entregado, siempre se muestra (Pendientes, Cancelados, etc.)
       if (item.status !== 'Entregado') return true; 
 
       // Si está entregado, verificar fecha
@@ -74,7 +84,7 @@ export const getSolicitudesByEscenario = async (escenarioNombre) => {
         const hoursDiff = (now - entregaDate) / (1000 * 60 * 60);
         return hoursDiff < 24; // Solo mostrar si tiene menos de 24 horas
       }
-      return true; // Si no tiene fecha de entrega por error, mostrarlo
+      return true; 
     });
 
     return filteredData;
@@ -85,14 +95,22 @@ export const getSolicitudesByEscenario = async (escenarioNombre) => {
 };
 
 /**
- * 4. ACTUALIZAR ESTADO (PATCH)
+ * 4. ACTUALIZAR ESTADO (PUT)
  * Maneja cambios a 'Entregado' (guarda fecha) o 'Cancelado' (guarda motivo).
  */
 export const updateStatus = async (id, newStatus, motivoCancelacion = null) => {
   try {
-    const updateData = { status: newStatus };
+    // 1. Primero obtenemos el objeto actual para no perder datos al hacer PUT
+    const currentResponse = await fetch(`${API_URL}/${id}`);
+    const currentData = await currentResponse.json();
+
+    // 2. Preparamos los datos actualizados
+    const updateData = { 
+      ...currentData, // Mantenemos los datos viejos (nombre, material, etc.)
+      status: newStatus 
+    };
     
-    // Si se entrega, guardamos cuándo ocurrió para la regla de las 24h
+    // Si se entrega, guardamos la fecha
     if (newStatus === 'Entregado') {
       updateData.fechaEntrega = new Date().toISOString(); 
     }
@@ -102,8 +120,9 @@ export const updateStatus = async (id, newStatus, motivoCancelacion = null) => {
       updateData.motivoCancelacion = motivoCancelacion;
     }
 
+    // 3. Enviamos la actualización completa (PUT es más seguro en MockAPI que PATCH)
     const response = await fetch(`${API_URL}/${id}`, {
-      method: 'PATCH', // PATCH solo actualiza los campos que enviamos, no borra el resto
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateData),
     });
@@ -122,7 +141,8 @@ export const updateStatus = async (id, newStatus, motivoCancelacion = null) => {
 export const getCanceladas = async () => {
   try {
     const response = await fetch(`${API_URL}?status=Cancelado`);
-    return await response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error("Error obteniendo canceladas:", error);
     return [];
