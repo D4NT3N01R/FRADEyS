@@ -6,7 +6,7 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 // Nos aseguramos de apuntar al recurso "solicitudes"
-// Si usaste la URL base de MockAPI (ej. .../api/v1), esto le agrega /solicitudes
+// Si se usaste la URL base de MockAPI (ej. .../api/v1), esto le agrega /solicitudes
 const API_URL = `${BASE_URL}/solicitudes`;
 
 /**
